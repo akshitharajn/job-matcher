@@ -13,7 +13,9 @@ from . import config
 from .llm import GroqClient
 from .models import Job
 from .pipeline import Matcher
+from .providers import default_providers
 from .retrieval import build_embedder
+from .store import JobStore
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,25 +27,41 @@ class MatchRequest(BaseModel):
 
 
 def load_jobs() -> list[Job]:
+    """The bundled synthetic sample jobs (used for tests, evals, and until live jobs have loaded)."""
     return [Job.model_validate(j) for j in json.loads((ROOT / "data" / "jobs.json").read_text(encoding="utf-8"))]
 
 
-def create_app(matcher: Matcher | None = None) -> FastAPI:
+def create_app(matcher: Matcher | None = None, store: JobStore | None = None) -> FastAPI:
     hits: dict[str, deque] = defaultdict(deque)  # naive in-memory per-IP rate limiter
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.matcher = matcher or Matcher(
-            load_jobs(), build_embedder(config.EMBEDDER, config.EMBED_MODEL), GroqClient()
-        )
+        m, st = matcher, store
+        if m is None:
+            m = Matcher(load_jobs(), build_embedder(config.EMBEDDER, config.EMBED_MODEL), GroqClient())
+            if config.LIVE_JOBS:
+                st = JobStore(m, default_providers(), config.JOB_REFRESH_HOURS, config.MAX_LIVE_JOBS)
+        app.state.matcher, app.state.store = m, st
+        if st:
+            st.start()
         yield
+        if st:
+            st.stop()
 
     app = FastAPI(title="Job Matcher (RAG with reasons)", lifespan=lifespan)
 
     @app.get("/api/health")
     def health(request: Request):
         m: Matcher = request.app.state.matcher
-        return {"status": "ok", "jobs": len(m.jobs), "llm_enabled": bool(m.llm and m.llm.available)}
+        st: JobStore | None = request.app.state.store
+        snap = m.snapshot
+        return {
+            "status": "ok",
+            "jobs": len(snap.jobs),
+            "data_source": snap.source,
+            "feeds": st.status if st else None,
+            "llm_enabled": bool(m.llm and m.llm.available),
+        }
 
     @app.post("/api/match")
     def match(req: MatchRequest, request: Request):

@@ -1,31 +1,47 @@
-# Job Matcher: RAG that explains its matches
+# Job Matcher: RAG over live job postings that explains its matches
 
 Paste your skills and what you want (and **never** want). The app turns that into a structured
-profile, removes dealbreaker jobs with hard rules, ranks the rest with hybrid retrieval, and writes
-a short, checked explanation for each match.
-
-> Demo data: 24 **synthetic** job postings in `data/jobs.json`. No real companies or people.
+profile, searches **current job postings fetched from live public feeds**, removes dealbreaker jobs with
+hard rules, ranks the rest with hybrid retrieval, and writes a short, checked explanation for each match.
+Every result links to the original posting.
 
 **Live demo:** _add your Render URL here after deploying_
+
+## Where the jobs come from
+
+| Source | What it has | Notes |
+|---|---|---|
+| [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | ~300 recent jobs, mostly Europe, includes internships | free API, no key |
+| [Remote OK](https://remoteok.com/api) | ~100 remote jobs worldwide | free API, no key |
+| [Jobicy](https://jobicy.com/api/v2/remote-jobs) | ~100 remote jobs worldwide | free API, no key |
+
+All three ask for credit and a link to the original posting, so the UI shows the source on every result,
+links each result to the original posting (where you apply), and credits the feeds in the footer.
+Feeds are fetched in the background on startup and then every 6 hours (not per search) to stay within their
+terms. If every feed is down, the app keeps the previous jobs, or the 24 bundled **synthetic** sample jobs
+(`data/jobs.json`) if it has never loaded any. The banner on the page says which one you're searching.
 
 ## Pipeline
 
 ```
+live feeds ──► Job objects (cleaned HTML, skills, seniority) ──► search index (swapped in atomically)
+
 free text ──► Profile (Groq LLM → JSON, validated; rule-based fallback)
           ──► hard filters (dealbreakers, seniority, location, salary)   ← rules, not similarity
           ──► hybrid retrieval: BM25 + embeddings, fused with RRF
+          ──► relevance gate (must mention enough of your skills, otherwise "no strong matches")
           ──► top-k ──► explanation per job (facts computed in code, LLM only phrases them, output checked)
 ```
-
-Key design decisions (each is something to be able to defend):
 
 | Decision | Why |
 |---|---|
 | Dealbreakers are **hard filters** applied before ranking | A similarity score can rank a gambling job highly because the skills match; an LLM can forget an instruction. A "never" must be a rule. |
-| BM25 + embeddings, fused with **RRF** | BM25 catches exact terms (`fastapi`), embeddings catch paraphrases ("suggest movies" → recommender). RRF fuses ranks, so no score normalisation is needed. |
+| BM25 + embeddings, fused with **RRF** | BM25 catches exact terms (`fastapi`), embeddings catch paraphrases. RRF fuses ranks, so no score normalisation is needed. |
+| **Relevance gate** after ranking | Similarity always puts *something* first, even when nothing fits (an EE query once ranked an "Account Executive" role first). With 3+ skills a job must mention at least two; otherwise the app says there are no strong matches. |
+| Background refresh + **atomic snapshot swap** | Searches never wait on a feed, and never see jobs from one pool with the index of another. |
 | Matched skills / gaps computed **in code** | The LLM can't claim a skill the posting doesn't list. |
 | LLM explanation is **checked**; falls back to a template | Any number in the text must exist in the posting/candidate text, otherwise the output is discarded (`app/explain.py`). |
-| BM25 and cosine written in plain Python | Small corpus, readable, no numpy needed. |
+| BM25 and cosine written in plain Python | Readable, no numpy needed. |
 | Works without an API key | Rule-based profile extractor + template explanations; the UI shows which path was used. |
 
 ## Run locally
@@ -33,13 +49,13 @@ Key design decisions (each is something to be able to defend):
 ```bash
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
-cp .env.example .env                                  # then put your Groq key in .env
-export $(grep -v '^#' .env | xargs)                   # or set the variables however you prefer
+export GROQ_API_KEY=...                               # PowerShell: $env:GROQ_API_KEY="..."
 uvicorn app.main:app --reload
-# open http://localhost:8000
+# open http://localhost:8000   (live jobs appear after ~10-30 seconds)
 ```
 
-Offline (no model download, no key): `EMBEDDER=hashing uvicorn app.main:app`
+Useful switches: `EMBEDDER=hashing` (no model download), `LIVE_JOBS=0` (bundled sample jobs only),
+`JOB_REFRESH_HOURS=6`, `MAX_LIVE_JOBS=500`. `GET /api/health` shows the data source and each feed's status.
 
 ## Evaluate
 
@@ -48,9 +64,9 @@ python -m eval.run_eval --embedder hashing     # offline
 python -m eval.run_eval --embedder fastembed   # real embeddings (what production uses)
 ```
 
-10 hand-labelled queries (`eval/queries.json`, graded relevance 0-2), metrics Recall@5, NDCG@5, MRR.
-
-Results with the offline hashing embedder (a weak baseline with no semantic understanding):
+The eval runs on the **bundled sample jobs**, not live data, because live data changes every hour and
+can't be hand-labelled once. 10 hand-labelled queries (`eval/queries.json`, graded relevance 0-2), metrics
+Recall@5, NDCG@5, MRR. Results with the offline hashing embedder (a weak baseline):
 
 | Retrieval | Recall@5 | NDCG@5 | MRR |
 |---|---|---|---|
@@ -58,18 +74,18 @@ Results with the offline hashing embedder (a weak baseline with no semantic unde
 | dense (hashing) | 0.817 | 0.889 | 1.000 |
 | hybrid | 0.833 | 0.912 | 1.000 |
 
-**TODO (you):** run the `fastembed` command above and paste that table here. Expect the picture to
-change, since real embeddings handle paraphrases the hashing baseline can't. Report whatever you
-actually get, even if BM25 still wins on a corpus this small.
+**TODO (you):** run the `fastembed` command and paste that table here. Report what you actually get.
 
 ## Limitations (be upfront about these)
 
-- 24 synthetic postings and 10 queries: the metrics show the method works, they don't prove it generalises.
-- Eval labels were drafted from the job texts, not by independent annotators. Review and extend them.
+- The feeds hold roughly 500 recent jobs, skew senior and European, and have few hardware/EE roles. For a narrow query the honest answer is often "no strong matches". Broader coverage would need another source (for example Adzuna, which has an India endpoint and a free key; not built).
+- Remote jobs often have regional restrictions ("USA only"). The location is shown but not filtered on.
+- Seniority is inferred from the title, so many postings are "unknown" (they are not filtered out).
+- The relevance gate is a heuristic (2 of 3+ skills). It trades recall for precision.
+- Eval metrics are on 24 synthetic jobs and 10 queries I labelled; they show the method works, not that it generalises.
 - The rule-based fallback only catches the first term in "never X or Y" (the LLM path handles lists).
-- Seniority/location/salary filters rely on the LLM extracting them correctly.
 - In-memory rate limiting per IP; it's a cost guard, not security.
-- Free-tier hosting sleeps when idle, so the first request after a pause is slow.
+- Free-tier hosting sleeps when idle, and re-embedding ~500 jobs on a small CPU after each wake-up or refresh may take a while (untested on Render's free tier).
 
 ## Deploy (Render, free tier)
 

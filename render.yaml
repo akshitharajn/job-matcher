@@ -9,3 +9,5 @@ services:
         sync: false   # you enter this in the Render dashboard; never commit it
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: LIVE_JOBS
+        value: "1"

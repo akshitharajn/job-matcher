@@ -24,8 +24,10 @@ def check(job: Job, profile: Profile) -> str | None:
         return "not remote"
 
     if profile.locations and not job.remote:
-        wanted = {loc.strip().lower() for loc in profile.locations}
-        if job.location.strip().lower() not in wanted:
+        # Real postings write "Paris, Ile-de-France, France"; a wanted "paris" should still match.
+        where = job.location.strip().lower()
+        wanted = {loc.strip().lower() for loc in profile.locations if loc.strip()}
+        if not any(w in where or where in w for w in wanted):
             return f"location: {job.location} is not in your preferred locations"
 
     if profile.min_salary and job.salary_max is not None and job.salary_max < profile.min_salary:

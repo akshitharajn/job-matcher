@@ -14,6 +14,9 @@ class Job(BaseModel):
     salary_max: int | None = None
     skills: list[str]
     description: str
+    url: str | None = None  # link to the original posting (required for live jobs)
+    source: str = "sample"  # "sample" or the live feed's name
+    posted: str | None = None  # YYYY-MM-DD
 
     def text(self) -> str:
         """Text used for retrieval and for dealbreaker checks."""
