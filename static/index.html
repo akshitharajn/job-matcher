@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Matcher</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --card:#fff; --line:#e7e5e4; --accent:#4f46e5; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --card:#292524; --line:#44403c; --accent:#818cf8; --warn:#fbbf24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 16px; }
+  textarea { width:100%; min-height:150px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); font:inherit; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:12px 0; }
+  select, button { font:inherit; padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:12px 0; }
+  .card h3 { margin:0; font-size:1.05rem; }
+  .meta { color:var(--muted); font-size:.9rem; }
+  .tag { display:inline-block; padding:1px 8px; margin:2px 4px 2px 0; border-radius:999px; font-size:.8rem; border:1px solid var(--line); }
+  .tag.ok { border-color:var(--accent); color:var(--accent); }
+  .tag.gap { border-color:var(--warn); color:var(--warn); }
+  details { margin-top:12px; color:var(--muted); font-size:.9rem; }
+  .note { font-size:.85rem; color:var(--muted); }
+  .err { color:#dc2626; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Job Matcher</h1>
+  <p class="sub">Describe your skills and what you want (and what you never want). Matching runs over sample postings only.</p>
+  <textarea id="text" placeholder="e.g. Final-year CS student. I know Python, FastAPI and RAG. Looking for an AI engineer internship, remote is fine. I never want to work in gambling."></textarea>
+  <div class="row">
+    <label>Retrieval
+      <select id="mode">
+        <option value="hybrid">Hybrid (BM25 + embeddings)</option>
+        <option value="bm25">BM25 only</option>
+        <option value="dense">Embeddings only</option>
+      </select>
+    </label>
+    <button class="primary" id="go">Find matches</button>
+  </div>
+  <p class="note">Demo uses synthetic sample jobs. Don't paste sensitive personal data; text is sent to a third-party LLM (Groq) to be parsed.</p>
+  <div id="out"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tags = (arr, cls) => arr.map((t) => `<span class="tag ${cls}">${esc(t)}</span>`).join("");
+
+$("go").onclick = async () => {
+  const btn = $("go"), out = $("out");
+  btn.disabled = true; out.innerHTML = "<p class='note'>Matching...</p>";
+  try {
+    const res = await fetch("/api/match", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: $("text").value, mode: $("mode").value, top_k: 5 }),
+    });
+    if (!res.ok) throw new Error(res.status === 429 ? "Too many requests - wait a minute." : res.status === 422 ? "Please write at least a sentence." : "Something went wrong.");
+    const d = await res.json();
+    const p = d.profile;
+    let html = `<div class="card"><strong>How I read your request</strong> <span class="meta">(${esc(d.profile_source)})</span><br>
+      skills: ${tags(p.skills, "ok") || "<em>none found</em>"}<br>
+      level: ${esc(p.seniority || "not specified")}${p.dealbreakers.length ? `<br>never: ${tags(p.dealbreakers, "gap")}` : ""}</div>`;
+    if (!d.results.length) html += "<p>No postings passed your filters.</p>";
+    for (const r of d.results) {
+      const j = r.job;
+      html += `<div class="card"><h3>${esc(j.title)} <span class="meta">- ${esc(j.company)}</span></h3>
+        <div class="meta">${esc(j.seniority)} - ${j.remote ? "remote" : esc(j.location)}${j.salary_max ? ` - ${j.salary_min}-${j.salary_max}k USD` : ""}</div>
+        <p>${esc(r.reason)}</p>
+        <div>${tags(r.matched_skills, "ok")}${tags(r.gaps, "gap")}</div>
+        <details><summary>Why it ranked here</summary>BM25 rank: ${r.bm25_rank ?? "no keyword match"}, embedding rank: ${r.dense_rank}, fused score ${r.score}. Explanation by: ${esc(r.reason_source)}.</details></div>`;
+    }
+    if (d.filtered_out.length) {
+      html += `<details><summary>${d.filtered_out.length} postings removed by your rules</summary>${d.filtered_out.map((f) => `${esc(f.job_id)}: ${esc(f.reason)}`).join("<br>")}</details>`;
+    }
+    out.innerHTML = html;
+  } catch (e) {
+    out.innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  } finally { btn.disabled = false; }
+};
+</script>
+</body>
+</html>

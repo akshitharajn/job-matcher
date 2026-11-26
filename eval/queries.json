@@ -1,0 +1,12 @@
+[
+  {"id":"q01","note":"LLM/RAG intern","profile":{"skills":["python","rag","llm","fastapi","embeddings"],"roles":["ai engineer"],"seniority":"intern","summary":"final year student wanting to build retrieval augmented generation applications"},"relevant":{"j01":2,"j09":2,"j13":1,"j18":1}},
+  {"id":"q02","note":"Python backend intern","profile":{"skills":["python","fastapi","postgresql","docker"],"roles":["backend engineer"],"seniority":"intern","summary":"backend developer who builds REST APIs with python"},"relevant":{"j19":2,"j02":2,"j01":1}},
+  {"id":"q03","note":"Frontend intern","profile":{"skills":["react","typescript","css"],"roles":["frontend engineer"],"seniority":"intern","summary":"enjoys building user interfaces"},"relevant":{"j03":2,"j08":1}},
+  {"id":"q04","note":"Data science intern","profile":{"skills":["python","pandas","scikit-learn","sql"],"roles":["data scientist"],"seniority":"intern","summary":"wants to train prediction models on real datasets"},"relevant":{"j04":2,"j23":1,"j10":1}},
+  {"id":"q05","note":"Recommender systems (paraphrased, no exact job title words)","profile":{"skills":["python","embeddings","sql"],"roles":[],"seniority":"junior","summary":"I want to build systems that suggest movies and videos people will like"},"relevant":{"j14":2,"j01":1}},
+  {"id":"q06","note":"MLOps","profile":{"skills":["docker","kubernetes","mlops","python"],"roles":["ml engineer"],"seniority":"junior","summary":"deploy and monitor machine learning models"},"relevant":{"j05":2,"j22":2,"j11":1}},
+  {"id":"q07","note":"NLP research","profile":{"skills":["python","transformers","nlp","pytorch"],"roles":[],"seniority":"intern","summary":"interested in language models and text research"},"relevant":{"j13":2,"j01":1,"j09":1}},
+  {"id":"q08","note":"Dealbreaker: never gambling (j15 must be filtered out)","profile":{"skills":["python","django","payments"],"roles":["backend engineer"],"seniority":"junior","dealbreakers":["gambling","betting"],"summary":"python backend developer"},"relevant":{"j02":2,"j19":1}},
+  {"id":"q09","note":"Mobile","profile":{"skills":["flutter","dart","firebase"],"roles":["mobile developer"],"seniority":"intern","summary":"building mobile apps"},"relevant":{"j12":2}},
+  {"id":"q10","note":"Testing / security automation","profile":{"skills":["python","pytest","selenium"],"roles":[],"seniority":"intern","summary":"automating tests and checks with python"},"relevant":{"j16":2,"j17":1}}
+]

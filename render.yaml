@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: job-matcher
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false   # you enter this in the Render dashboard; never commit it
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
