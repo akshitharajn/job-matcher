@@ -85,7 +85,8 @@ class FastEmbedEmbedder:
         self.model = TextEmbedding(model_name=model_name)
 
     def embed_docs(self, texts):
-        return [_normalize([float(x) for x in v]) for v in self.model.passage_embed(texts)]
+        # fastembed's default batch is 256 passages x up to 512 tokens, which can exceed a 512 MB host.
+        return [_normalize([float(x) for x in v]) for v in self.model.passage_embed(texts, batch_size=8)]
 
     def embed_query(self, text):
         return _normalize([float(x) for x in next(iter(self.model.query_embed([text])))])

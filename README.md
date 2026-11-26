@@ -55,7 +55,7 @@ uvicorn app.main:app --reload
 ```
 
 Useful switches: `EMBEDDER=hashing` (no model download), `LIVE_JOBS=0` (bundled sample jobs only),
-`JOB_REFRESH_HOURS=6`, `MAX_LIVE_JOBS=500`. `GET /api/health` shows the data source and each feed's status.
+`JOB_REFRESH_HOURS=6`, `MAX_LIVE_JOBS=200`. `GET /api/health` shows the data source and each feed's status.
 
 ## Evaluate
 

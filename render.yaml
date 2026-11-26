@@ -11,3 +11,5 @@ services:
         value: llama-3.3-70b-versatile
       - key: LIVE_JOBS
         value: "1"
+      - key: MAX_LIVE_JOBS
+        value: "150"   # the free tier has 0.1 CPU / 512 MB RAM
