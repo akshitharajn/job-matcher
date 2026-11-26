@@ -157,3 +157,14 @@ def test_category_tags_are_not_treated_as_skills():
     skills = extract_skills(["Data Scientist", "Engineering", "python", "remote"], "We use django daily")
     assert "data scientist" not in skills and "engineering" not in skills and "remote" not in skills
     assert skills[:2] == ["python", "django"]
+
+
+def test_merge_jobs_prefers_jobs_with_recognised_skills_when_capped():
+    def job(i, title, skills):
+        return Job(id=str(i), title=title, company=f"c{i}", location="x", remote=True, seniority="unknown",
+                   skills=skills, description="")
+
+    batch = [job(1, "Sales Lead", []), job(2, "Marketing Manager", []), job(3, "Python Dev", ["python"]),
+             job(4, "React Dev", ["react"])]
+    assert {j.id for j in merge_jobs([batch], cap=2)} == {"3", "4"}
+    assert len(merge_jobs([batch], cap=10)) == 4  # non-technical jobs still fill leftover space

@@ -13,3 +13,5 @@ services:
         value: "1"
       - key: MAX_LIVE_JOBS
         value: "150"   # the free tier has 0.1 CPU / 512 MB RAM
+      - key: EMBEDDER
+        value: hashing   # free plan (0.1 CPU) is too slow for real embeddings; remove on a paid plan

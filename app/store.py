@@ -16,20 +16,26 @@ from .providers import Provider
 log = logging.getLogger("jobstore")
 
 
-def merge_jobs(batches: list[list[Job]], cap: int) -> list[Job]:
-    """Round-robin across feeds (so one feed can't fill the cap), de-duplicated by title + company."""
-    seen, out = set(), []
+def _round_robin(batches: list[list[Job]]) -> list[Job]:
+    out = []
     for i in range(max((len(b) for b in batches), default=0)):
-        for batch in batches:
-            if i < len(batch):
-                job = batch[i]
-                key = (job.title.strip().lower(), job.company.strip().lower())
-                if key not in seen:
-                    seen.add(key)
-                    out.append(job)
-                    if len(out) >= cap:
-                        return out
+        out.extend(batch[i] for batch in batches if i < len(batch))
     return out
+
+
+def merge_jobs(batches: list[list[Job]], cap: int) -> list[Job]:
+    """Pick up to `cap` jobs: round-robin across feeds (so one feed can't fill the cap), de-duplicated by
+    title + company, and jobs that mention at least one recognised skill come first. Feeds contain many
+    non-technical roles; when the cap is small, filling it with those would leave nothing to match."""
+    seen, unique = set(), []
+    for job in _round_robin(batches):
+        key = (job.title.strip().lower(), job.company.strip().lower())
+        if key not in seen:
+            seen.add(key)
+            unique.append(job)
+    with_skills = [j for j in unique if j.skills]
+    without = [j for j in unique if not j.skills]
+    return (with_skills + without)[:cap]
 
 
 class JobStore:

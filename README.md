@@ -85,7 +85,7 @@ Recall@5, NDCG@5, MRR. Results with the offline hashing embedder (a weak baselin
 - Eval metrics are on 24 synthetic jobs and 10 queries I labelled; they show the method works, not that it generalises.
 - The rule-based fallback only catches the first term in "never X or Y" (the LLM path handles lists).
 - In-memory rate limiting per IP; it's a cost guard, not security.
-- Free-tier hosting sleeps when idle, and re-embedding ~500 jobs on a small CPU after each wake-up or refresh may take a while (untested on Render's free tier).
+- **Free-tier hosting and embeddings.** Render's free plan has 0.1 CPU / 512 MB. I measured that embedding 150 live jobs with the real model (`fastembed`) took over ten minutes after each start, during which the app only shows sample jobs, and the free plan sleeps when idle, so that would repeat on every wake-up. For a free-plan demo, set `EMBEDDER=hashing`: live jobs then load in seconds, but the "dense" half of hybrid search is only a hashed bag-of-words with no semantic understanding. Real embeddings need a bigger instance or a local run.
 
 ## Deploy (Render, free tier)
 
